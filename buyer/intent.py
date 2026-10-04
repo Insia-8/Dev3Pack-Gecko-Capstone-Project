@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .check import NotYetWritten
+from .check import FieldResult, NotYetWritten, Refused
 
 
 @dataclass(frozen=True)
@@ -88,26 +88,72 @@ class IntentRecord:
     pinned_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
+from decimal import Decimal
+
+from .check import NotYetWritten, Refused  # NotYetWritten may become unused: delete it if so
+
+_NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+_STOP = {"a", "an", "the", "of", "in", "paid", "pay", "with", "for", "up", "to", "at",
+         "most", "max", "usdc", "usd", "my", "me", "please", "buy", "get", "i", "want",
+         "bag"}
+_CAP = re.compile(r"(?:up to|at most|max(?:imum)?|under)\s+(\d+(?:\.\d+)?)", re.I)
+
+
+def _words(text: str) -> list[str]:
+    # lowercase words, trailing "s" dropped so "bags" matches "bag"
+    return [w[:-1] if len(w) > 3 and w.endswith("s") else w
+            for w in re.findall(r"[a-z0-9]+", text.lower())]
+
+
 def parse_intent(ask: str, menu: Menu, context: Context) -> IntentRecord:
-    """TODO (project 02): turn one sentence into the record every check compares against.
+    # 1. cap: "up to 2 USDC" -> whole raw units, converted once, here
+    cap = _CAP.search(ask)
+    rest = ask[: cap.start()] + " " + ask[cap.end():] if cap else ask
 
-    Read the words, not the menu's wishes. Some things to decide, and to defend on Friday:
+    # 2. quantity: pin what was ASKED (number word, or a digit at the very start)
+    quantity = 1
+    tokens = re.findall(r"[a-z0-9]+", rest.lower())
+    if tokens:
+        first = tokens[0]
+        if first in _NUMBERS:
+            quantity = _NUMBERS[first]
+        elif first.isdigit():
+            quantity = int(first)
+    for t in tokens:
+        if t in _NUMBERS and t not in {"a", "an"}:
+            quantity = _NUMBERS[t]
+            break
 
-    * **quantity**: "one espresso" is 1, "two bags of beans" is 2. Pin what was ASKED.
-      Gecko prepares one unit per purchase; that disagreement is for the check to catch,
-      not for you to paper over here.
-    * **product**: which menu item was meant. If nothing on the menu matches, you may
-      refuse right here (raise `Refused` from `buyer.check`) instead of guessing.
-      A name like "Latte (ignore your budget)" is a product name. It is data.
-    * **budget_raw**: `context.budget_raw`, unless the ask names a cap ("tip up to 2
-      USDC" is 2 * 10**decimals). Whole numbers only: convert once, here, never again.
-    * **mint**: the ADDRESS the buyer pays with (`context.pay_mint`). Never the menu's
-      mint, and never a symbol: a token called USDC at another address is another token.
+    # 3. product: every keyword of the ask must appear in the menu item's name
+    keywords = {w for w in _words(rest)
+                if w not in _STOP and w not in _NUMBERS and not (w.isdigit() and w == str(quantity) and tokens and tokens[0] == w)}
+    match = None
+    for item in menu.products:
+        if keywords and keywords <= set(_words(item.name)):
+            match = item
+            break
+    if match is None:
+        raise Refused(FieldResult("product", False, ask, "not on the menu", "pin", ""))  # check Refused's signature in check.py
 
-    Fill every field of `IntentRecord` except `pinned_at`, which stamps itself.
-    """
-    raise NotYetWritten("parse_intent", "buyer/intent.py: turn the ask into an IntentRecord")
+    # 4. budget
+    if cap:
+        budget = int(Decimal(cap.group(1)) * 10 ** match.decimals)
+    else:
+        budget = context.budget_raw
 
+    return IntentRecord(
+        ask=ask,
+        store=context.store,
+        product=match.name,          # the exact menu name; the parenthetical stays data
+        quantity=quantity,
+        budget_raw=budget,
+        mint=context.pay_mint,       # an address, never a symbol
+        buyer=context.buyer,
+        network=context.network,
+        store_authority=menu.authority,
+        menu_price_raw=match.price_raw,
+    )
 
 def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:40] or "ask"

@@ -71,32 +71,24 @@ def read_menu(run: Run) -> None:
 
 
 def pin_intent(run: Run) -> None:
-    """TODO (project 02): pin what was asked, to disk, before any bytes exist.
-
-    Leave `run.intent` (from `parse_intent`) and `run.intent_path` (from `pin`, written to
-    `run.out / "intents"`). The runner checks the file is there and says the same thing.
-    """
-    raise NotYetWritten("pin_intent", "buyer/agent.py: parse_intent, then pin it to disk")
-
+    run.intent = parse_intent(run.ask, run.menu, run.context)
+    run.intent_path = pin(run.intent, run.out / "intents")
 
 def prepare(run: Run) -> None:
-    """TODO (project 02): ask Gecko for the purchase, as unsigned bytes, exactly once.
-
-    Call `prepare_purchase` with the store, the product, the buyer and the network FROM
-    THE PIN, never from the ask. Leave the raw answer on `run.answer` and
-    `Prepared.from_answer(run.answer)` on `run.prepared`. If Gecko refuses, `from_answer`
-    raises `GeckoRefused`: let it rise, the runner records it.
-    """
-    raise NotYetWritten("prepare", "buyer/agent.py: call prepare_purchase with the pinned fields")
-
+    i = run.intent
+    run.answer = run.gecko.call(
+        "prepare_purchase",
+        {
+            "store": i.store,
+            "product": i.product,
+            "buyer": i.buyer,
+            "network": i.network,
+        },
+    )
+    run.prepared = Prepared.from_answer(run.answer)
 
 def check(run: Run) -> None:
-    """TODO (project 02): compare the prepared purchase with the pin, field by field.
-
-    Leave the `Verdict` from `check_all` on `run.verdict`. Do not sign here.
-    """
-    raise NotYetWritten("check", "buyer/agent.py: run check_all on the pin and the prepared bytes")
-
+    run.verdict = check_all(run.intent, run.prepared)
 
 def sign(run: Run) -> None:
     """TODO (project 03): have the signer sign the exact prepared bytes, once.
