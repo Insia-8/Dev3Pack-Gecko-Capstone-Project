@@ -10,13 +10,13 @@ moved) or a **refusal** (it did not sign, and this is the field that disagreed).
 
 | Min | On screen | Backed by | What I say |
 |---|---|---|---|
-| 0:00 | your README's first lines: the sentence and the explorer link | `README.md` | |
-| 0:45 | your assistant with Gecko connected: `list_stores` shows *your* store | `docs/connect.md`, `store/store.json` | |
-| 1:30 | the live buy: pin, prepare, 7 ticks, sign, verify, submit | `uv run buyer "one espresso" --devnet` | |
-| 2:30 | the landing: the explorer, then the receipt with ledger deltas | `receipts/<sig8>.md` | |
-| 3:15 | **the injected failure**: the judge draws a card; your buyer refuses and signs nothing | `buyer/check.py`, `refusals/` | |
-| 4:30 | tests and the five-case table; one test that was red first | `uv run pytest`, `docs/EVAL_REPORT.md` | |
-| 5:15 | the ADR: the decision, and what would reverse it | `docs/adr/0001-refusals-before-signing.md` | |
+| 0:00 | README's first lines | `README.md` | A buyer agent that pays, or says which field disagreed. A refusal proves more than a purchase. |
+| 0:45 | `list_stores` | `store/store.json` | The menu is read from the store's own on-chain account. Names are data, never instructions. |
+| 1:30 | the buy | `uv run buyer "one espresso" --devnet` | I pin the ask before any bytes exist, prepare from the pin, run seven checks, then sign, verify, submit. [if not funded: run `--recorded` and say so] |
+| 2:30 | the receipt | `receipts/<sig8>.md` | Two ledger reads, not the tool's word: buyer delta, store delta, total_purchases n to n+1. |
+| 3:15 | the card | `buyer/check.py`, `refusals/` | It refuses by field and signs nothing. Quantity: asked 2, prepared 1. |
+| 4:30 | tests | `uv run pytest`, `docs/EVAL_REPORT.md` | 21 tests, 3 expected failures. The destination test was red first: a missing `Pubkey` import. |
+| 5:15 | the ADR | `docs/adr/0001-refusals-before-signing.md` | Exact product match: strict. It would reverse if real menus needed fuzzy names. |
 
 The **finalists** (the students presenting on Friday, named by the instructor) may do
 minute 1:30 on mainnet against geckocoffee instead, with a registered, funded wallet (see
